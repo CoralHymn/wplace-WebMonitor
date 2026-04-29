@@ -232,8 +232,8 @@ HEADERS = {
 
 ```html
 <!-- 标题和副标题 -->
-<h1>和平之师</h1>
-<p>青海湖区域• LIVE</p>
+<h1>wplace-WebMonitor</h1>
+<p>wplace • LIVE</p>
 
 <!-- 自动更新提示 -->
 <span class="text-[10px] opacity-60">5分钟自动更新</span>

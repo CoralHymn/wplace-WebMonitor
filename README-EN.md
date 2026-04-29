@@ -232,8 +232,8 @@ HEADERS = {
 
 ```html
 <!-- Title and subtitle -->
-<h1>Peace Army</h1>
-<p>Qinghai Lake Region • LIVE</p>
+<h1>wplace-WebMonitor</h1>
+<p>wplace • LIVE</p>
 
 <!-- Auto-update indicator -->
 <span class="text-[10px] opacity-60">Auto-updates every 5 minutes</span>
