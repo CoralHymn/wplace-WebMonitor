@@ -2,6 +2,13 @@
 
 A monitoring system for wplace.live pixel canvas - captures real-time color distribution of specified regions, records historical data, and provides a visualization dashboard.
 
+
+<div align="center">
+
+### [🇺🇸 English](README-EN.md) | [🇨🇳 简体中文](README.md)
+
+</div>
+
 ## 📋 Overview
 
 This project is a region monitoring tool for [wplace.live](https://wplace.live) (a collaborative pixel canvas platform similar to r/place). It provides:
@@ -43,6 +50,7 @@ Monitor the territory around Qinghai Lake on wplace.live, track color distributi
 wplace-WebMonitor/
 ├── capture.py              # Tile downloader and screenshot generator
 ├── monitor.py              # Main monitoring service (scheduler)
+├── config.py               # Configure
 ├── index.html              # Web visualization dashboard
 ├── requirements.txt        # Python dependencies
 ├── README.md               # Chinese documentation
@@ -85,14 +93,21 @@ Dependencies:
 - `pillow`: Image processing library for tile stitching and color analysis
 - `aiohttp`: Async HTTP client for concurrent tile downloads
 
-#### 3. Configure Monitoring Region (Optional)
+#### 3. Configure Monitoring Region
 
-Edit lines 9-12 in `capture.py` to modify the tile coordinates of the monitored region:
+Edit `config.py` to modify the tile coordinates of the monitored region:
 
 ```python
 # Format: (tile_x, tile_y, pixel_offset_x, pixel_offset_y)
-LEFT_TILE_X, LEFT_TILE_Y, LEFT_PX, LEFT_PY = 1590, 795, 800, 400
-RIGHT_TILE_X, RIGHT_TILE_Y, RIGHT_PX, RIGHT_PY = 1593, 797, 811, 405
+LEFT_TILE_X = 1590
+LEFT_TILE_Y = 795
+LEFT_PX = 800
+LEFT_PY = 400
+
+RIGHT_TILE_X = 1593
+RIGHT_TILE_Y = 797
+RIGHT_PX = 811
+RIGHT_PY = 405
 ```
 
 **How to get tile coordinates:**
@@ -129,31 +144,70 @@ Then visit in your browser: `http://localhost:8000/index.html`
 
 ## ⚙️ Configuration Details
 
-### Monitoring Frequency (`monitor.py`)
+All configuration options are centralized in the `config.py` file. Changes take effect after restarting the service.
+
+### Monitoring Region Configuration
 
 ```python
-CAPTURE_INTERVAL_SEC = 120      # Screenshot interval (seconds), default 120s (2 minutes)
-ANALYSIS_INTERVAL_SEC = 300     # Color analysis interval (seconds), default 300s (5 minutes)
-CLEANUP_HOUR = 8                # Daily cleanup time (hour), default 8 AM
+# Top-left tile coordinates and pixel offset
+LEFT_TILE_X = 1590
+LEFT_TILE_Y = 795
+LEFT_PX = 800
+LEFT_PY = 400
+
+# Bottom-right tile coordinates and pixel offset
+RIGHT_TILE_X = 1593
+RIGHT_TILE_Y = 797
+RIGHT_PX = 811
+RIGHT_PY = 405
+```
+
+**How to get tile coordinates:**
+1. Open [wplace.live](https://wplace.live)
+2. Navigate to the region you want to monitor
+3. Get tile coordinates through browser DevTools or URL parameters
+4. Fill top-left coordinates into `LEFT_*` variables, bottom-right into `RIGHT_*` variables
+
+### Screenshot Frequency Configuration
+
+```python
+# Screenshot interval (seconds), default 120s (2 minutes)
+CAPTURE_INTERVAL_SEC = 120
 ```
 
 **Adjustment Recommendations:**
-- `CAPTURE_INTERVAL_SEC`:
-  - Lower values increase screenshot frequency but also server load and storage usage
-  - Recommended minimum: 60 seconds to avoid being banned by the target website
-  - Higher values reduce resource consumption, suitable for long-term low-power operation
-  
-- `ANALYSIS_INTERVAL_SEC`:
-  - Must be greater than or equal to `CAPTURE_INTERVAL_SEC`
-  - Lower values provide finer-grained color data but increase CPU usage
-  - Recommended to keep at 300 seconds (5 minutes) for balanced precision and performance
+- Lower values increase screenshot frequency but also server load and storage usage
+- Recommended minimum: 60 seconds to avoid being banned by the target website
+- Higher values reduce resource consumption, suitable for long-term low-power operation
 
-- `CLEANUP_HOUR`:
-  - Range: 0-23
-  - Choose off-peak hours for cleanup to avoid affecting normal monitoring
-  - Cleanup rule: Keep screenshots from the last 24 hours, delete the rest
+### Color Analysis Frequency Configuration
 
-### Monitoring Region Configuration (`capture.py`)
+```python
+# Color analysis interval (seconds), default 300s (5 minutes)
+ANALYSIS_INTERVAL_SEC = 300
+```
+
+**Adjustment Recommendations:**
+- Must be greater than or equal to `CAPTURE_INTERVAL_SEC`
+- Lower values provide finer-grained color data but increase CPU usage
+- Recommended to keep at 300 seconds (5 minutes) for balanced precision and performance
+
+### Auto-Cleanup Configuration
+
+```python
+# Enable auto-cleanup of previous day's screenshots (True/False)
+AUTO_CLEANUP_ENABLED = True
+
+# Daily cleanup time (hour, 0-23), default 8 AM
+CLEANUP_HOUR = 8
+```
+
+**Description:**
+- `AUTO_CLEANUP_ENABLED`: Set to `False` to disable automatic cleanup
+- `CLEANUP_HOUR`: Choose off-peak hours for cleanup to avoid affecting normal monitoring
+- Cleanup rule: Delete all screenshots from the previous day at the specified time
+
+### Advanced Configuration
 
 ```python
 # Tile server URL
@@ -164,16 +218,15 @@ TILE_SIZE = 1000
 
 # Request headers (simulate browser to avoid bans)
 HEADERS = {
-    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) ...',
-    'Accept': 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
-    'Referer': 'https://wplace.live/',
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) ...",
+    "Referer": "https://wplace.live/",
+    "Accept": "image/png,image/*,*/*;q=0.8"
 }
 ```
 
 **Adjustment Recommendations:**
 - Generally no need to modify `TILE_BASE_URL` and `TILE_SIZE`
 - If encountering 403 errors, try changing the `User-Agent` string
-- Default retry count is 3; increase if network is unstable
 
 ### Web Interface Configuration (`index.html`)
 

@@ -8,6 +8,9 @@ import shutil
 from collections import defaultdict
 from PIL import Image
 
+# 导入配置文件
+import config
+
 # 导入截图模块（你的原逻辑，严格保留）
 import importlib.util
 script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -15,11 +18,6 @@ capture_path = os.path.join(script_dir, "capture.py")
 spec = importlib.util.spec_from_file_location("capture_module", capture_path)
 capture_module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(capture_module)
-
-# ================= 配置 =================
-CAPTURE_INTERVAL_SEC = 120
-ANALYSIS_INTERVAL_SEC = 300
-CLEANUP_HOUR = 8
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.path.join(SCRIPT_DIR, "data")
@@ -29,7 +27,6 @@ REALTIME_JSON = os.path.join(DATA_DIR, "realtime_colors.json")   # 实时 + 最�
 HISTORY_JSON  = os.path.join(DATA_DIR, "history_colors.json")    # 每日中午记录
 THREE_DAYS_JSON = os.path.join(DATA_DIR, "three_days.json")      # 最近72小时
 SEVEN_DAYS_JSON = os.path.join(DATA_DIR, "seven_days.json")      # 新增：最近7天
-# =======================================
 
 def get_precise_color_stats(image_path):
     try:
@@ -71,6 +68,10 @@ def save_json(filepath, data):
         json.dump(data, f, ensure_ascii=False, indent=2)
 
 def cleanup_old_images():
+    """清理前一天的旧截图（如果启用）"""
+    if not config.AUTO_CLEANUP_ENABLED:
+        return
+    
     now = datetime.now()
     target_date = (now - timedelta(days=1)).date()
     output_dir = capture_module.OUTPUT_DIR
@@ -180,7 +181,7 @@ async def main_loop():
         except Exception as e:
             print(f"❌ 截图出错: {e}")
 
-        if img_path and (now - last_analysis_time >= ANALYSIS_INTERVAL_SEC):
+        if img_path and (now - last_analysis_time >= config.ANALYSIS_INTERVAL_SEC):
             print("📊 正在分析颜色占比...")
             stats = get_precise_color_stats(img_path)
             
@@ -199,12 +200,12 @@ async def main_loop():
             last_analysis_time = now
             print("✅ 数据分析与JSON更新完成")
 
-        if current_dt.hour == CLEANUP_HOUR and last_cleanup_check_date != current_dt.date():
+        if config.AUTO_CLEANUP_ENABLED and current_dt.hour == config.CLEANUP_HOUR and last_cleanup_check_date != current_dt.date():
             print("⏰ 执行每日清理任务...")
             cleanup_old_images()
             last_cleanup_check_date = current_dt.date()
 
-        await asyncio.sleep(CAPTURE_INTERVAL_SEC)
+        await asyncio.sleep(config.CAPTURE_INTERVAL_SEC)
 
 if __name__ == "__main__":
     try:
