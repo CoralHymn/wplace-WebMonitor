@@ -2,6 +2,13 @@
 
 wplace.live 像素画布区域监控系统 - 实时捕获指定区域的像素颜色分布，记录历史数据并提供可视化查看界面。
 
+
+<div align="center">
+
+### [🇺🇸 English](README-EN.md) | [🇨🇳 简体中文](README.md)
+
+</div>
+
 ## 📋 项目简介
 
 本项目是一个针对 [wplace.live](https://wplace.live)（类似 r/place 的协作像素画布平台）的区域监控工具。它可以：
@@ -43,6 +50,7 @@ wplace.live 像素画布区域监控系统 - 实时捕获指定区域的像素�
 wplace-WebMonitor/
 ├── capture.py              # 瓦片下载与截图生成模块
 ├── monitor.py              # 主监控服务（调度器）
+├── config.py               # 配置
 ├── index.html              # Web 可视化仪表板
 ├── requirements.txt        # Python 依赖列表
 ├── README.md               # 中文说明文档
@@ -85,14 +93,21 @@ pip install -r requirements.txt
 - `pillow`：图像处理库，用于拼接瓦片和颜色分析
 - `aiohttp`：异步 HTTP 客户端，用于并发下载瓦片
 
-#### 3. 配置监控区域（可选）
+#### 3. 配置监控区域
 
-编辑 `capture.py` 文件第 9-12 行，修改监控区域的瓦片坐标：
+编辑 `config.py` 文件，修改监控区域的瓦片坐标：
 
 ```python
 # 格式：(瓦片X, 瓦片Y, 像素偏移X, 像素偏移Y)
-LEFT_TILE_X, LEFT_TILE_Y, LEFT_PX, LEFT_PY = 1590, 795, 800, 400
-RIGHT_TILE_X, RIGHT_TILE_Y, RIGHT_PX, RIGHT_PY = 1593, 797, 811, 405
+LEFT_TILE_X = 1590
+LEFT_TILE_Y = 795
+LEFT_PX = 800
+LEFT_PY = 400
+
+RIGHT_TILE_X = 1593
+RIGHT_TILE_Y = 797
+RIGHT_PX = 811
+RIGHT_PY = 405
 ```
 
 **如何获取瓦片坐标：**
@@ -129,31 +144,70 @@ python -m http.server 8000
 
 ## ⚙️ 配置项详解
 
-### 监控频率配置（`monitor.py`）
+所有配置项已集中到 `config.py` 文件中，修改后重启服务即可生效。
+
+### 监控区域配置
 
 ```python
-CAPTURE_INTERVAL_SEC = 120      # 截图间隔（秒），默认120秒（2分钟）
-ANALYSIS_INTERVAL_SEC = 300     # 颜色分析间隔（秒），默认300秒（5分钟）
-CLEANUP_HOUR = 8                # 每日清理时间（小时），默认早上8点
+# 左上角瓦片坐标及像素偏移
+LEFT_TILE_X = 1590
+LEFT_TILE_Y = 795
+LEFT_PX = 800
+LEFT_PY = 400
+
+# 右下角瓦片坐标及像素偏移
+RIGHT_TILE_X = 1593
+RIGHT_TILE_Y = 797
+RIGHT_PX = 811
+RIGHT_PY = 405
+```
+
+**如何获取瓦片坐标：**
+1. 打开 [wplace.live](https://wplace.live)
+2. 定位到想要监控的区域
+3. 通过浏览器开发者工具或观察 URL 参数获取瓦片坐标
+4. 左上角坐标填入 `LEFT_*` 变量，右下角坐标填入 `RIGHT_*` 变量
+
+### 截图频率配置
+
+```python
+# 截图间隔（秒），默认120秒（2分钟）
+CAPTURE_INTERVAL_SEC = 120
 ```
 
 **调整建议：**
-- `CAPTURE_INTERVAL_SEC`：
-  - 降低此值可提高截图频率，但会增加服务器负载和存储占用
-  - 建议不低于 60 秒，避免被目标网站封禁
-  - 提高此值可减少资源消耗，适合长期低功耗运行
-  
-- `ANALYSIS_INTERVAL_SEC`：
-  - 必须大于等于 `CAPTURE_INTERVAL_SEC`
-  - 降低此值可获得更细粒度的颜色数据，但会增加 CPU 使用率
-  - 建议保持 300 秒（5分钟）以平衡精度和性能
+- 降低此值可提高截图频率，但会增加服务器负载和存储占用
+- 建议不低于 60 秒，避免被目标网站封禁
+- 提高此值可减少资源消耗，适合长期低功耗运行
 
-- `CLEANUP_HOUR`：
-  - 取值范围：0-23
-  - 选择业务低峰期进行清理，避免影响正常监控
-  - 清理规则：保留最近 24 小时的截图，其余删除
+### 颜色分析频率配置
 
-### 监控区域配置（`capture.py`）
+```python
+# 颜色分析间隔（秒），默认300秒（5分钟）
+ANALYSIS_INTERVAL_SEC = 300
+```
+
+**调整建议：**
+- 必须大于等于 `CAPTURE_INTERVAL_SEC`
+- 降低此值可获得更细粒度的颜色数据，但会增加 CPU 使用率
+- 建议保持 300 秒（5分钟）以平衡精度和性能
+
+### 自动清理配置
+
+```python
+# 是否启用自动清理前一天的旧截图（True/False）
+AUTO_CLEANUP_ENABLED = True
+
+# 每日清理时间（小时，0-23），默认早上8点
+CLEANUP_HOUR = 8
+```
+
+**说明：**
+- `AUTO_CLEANUP_ENABLED`：设置为 `False` 可禁用自动清理功能
+- `CLEANUP_HOUR`：选择业务低峰期进行清理，避免影响正常监控
+- 清理规则：每天在指定时间删除前一天的所有截图
+
+### 高级配置
 
 ```python
 # 瓦片服务器地址
@@ -164,16 +218,15 @@ TILE_SIZE = 1000
 
 # 请求头（模拟浏览器，避免被封禁）
 HEADERS = {
-    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) ...',
-    'Accept': 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
-    'Referer': 'https://wplace.live/',
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) ...",
+    "Referer": "https://wplace.live/",
+    "Accept": "image/png,image/*,*/*;q=0.8"
 }
 ```
 
 **调整建议：**
 - 一般情况下无需修改 `TILE_BASE_URL` 和 `TILE_SIZE`
 - 如遇到 403 错误，可尝试更换 `User-Agent` 字符串
-- 重试次数默认为 3 次，网络不稳定时可适当增加
 
 ### Web 界面配置（`index.html`）
 
