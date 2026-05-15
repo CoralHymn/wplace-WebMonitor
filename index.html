@@ -511,33 +511,176 @@
         }
 
         function downloadExportImage() {
-            const element = document.getElementById('export-content');
             const btn = document.getElementById('download-btn');
             const originalText = btn.innerHTML;
             btn.innerHTML = '⏳ 生成中...';
             btn.disabled = true;
-
-            html2canvas(element, {
-                scale: 2,
-                useCORS: true,
-                backgroundColor: '#1f2937',
-                logging: false,
-                width: element.scrollWidth,
-                height: element.scrollHeight
-            }).then(canvas => {
-                const link = document.createElement('a');
-                link.download = `wplace_export_${new Date().toISOString().slice(0,19).replace(/:/g,'-')}.png`;
-                link.href = canvas.toDataURL('image/png');
-                link.click();
-                
-                btn.innerHTML = originalText;
-                btn.disabled = false;
-            }).catch(err => {
+        
+            // 创建离屏容器（固定1800px宽，确保内容完整）
+            const offscreenContainer = document.createElement('div');
+            offscreenContainer.id = 'offscreen-export';
+            offscreenContainer.style.position = 'fixed';
+            offscreenContainer.style.left = '-9999px';
+            offscreenContainer.style.top = '0';
+            offscreenContainer.style.width = '1800px';
+            offscreenContainer.style.background = '#2d333b';
+            offscreenContainer.style.padding = '60px 40px';
+            offscreenContainer.style.zIndex = '-1';
+            offscreenContainer.innerHTML = `
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 30px; margin-bottom: 50px;">
+                    <div style="padding: 20px;">
+                        <h3 style="text-align: center; color: #22c55e; font-size: 20px; margin-bottom: 20px; font-family: 'Press Start 2P';">实时颜色占比 (Top 15)</h3>
+                        <div id="offscreen-pie" style="width: 820px; height: 550px;"></div>
+                    </div>
+                    <div style="padding: 20px;">
+                        <h3 style="text-align: center; color: #22c55e; font-size: 20px; margin-bottom: 20px; font-family: 'Press Start 2P';">颜色历史趋势 (全部数据)</h3>
+                        <div id="offscreen-history" style="width: 820px; height: 550px;"></div>
+                    </div>
+                </div>
+                <div style="padding: 20px;">
+                    <h3 style="text-align: center; color: #22c55e; font-size: 20px; margin-bottom: 20px; font-family: 'Press Start 2P';">导出范围数据趋势</h3>
+                    <div id="offscreen-line" style="width: 1720px; height: 650px;"></div>
+                </div>
+            `;
+            document.body.appendChild(offscreenContainer);
+        
+            // 初始化离屏图表
+            const offPieChart = echarts.init(document.getElementById('offscreen-pie'));
+            const offHistoryChart = echarts.init(document.getElementById('offscreen-history'));
+            const offLineChart = echarts.init(document.getElementById('offscreen-line'));
+        
+            try {
+                // 渲染饼图
+                if (realtimeData) {
+                    const latestStats = realtimeData.records?.[realtimeData.records.length-1]?.stats || {};
+                    const pieData = Object.entries(latestStats).slice(0,15)
+                        .map(([color,val]) => ({name:color, value:val, itemStyle:{color}}));
+        
+                    offPieChart.setOption({
+                        backgroundColor: 'transparent',
+                        tooltip: { trigger: 'item', formatter: '{b}: {c}%' },
+                        legend: { top: '5%', left: 'center', type: 'scroll', textStyle: { color: '#22c55e', fontSize: 13 } },
+                        series: [{ type: 'pie', radius: ['40%', '70%'], data: pieData, label: { color: '#ddd', fontSize: 13 } }]
+                    });
+                }
+        
+                // 渲染历史趋势
+                if (historyData?.daily_noon?.length > 0) {
+                    const list = historyData.daily_noon;
+                    const lastStats = list[list.length-1].stats || {};
+                    const topColors = Object.keys(lastStats)
+                        .sort((a,b) => (lastStats[b]||0) - (lastStats[a]||0))
+                        .slice(0, 8);
+        
+                    const xData = list.map(item => item.date);
+                    const series = topColors.map(color => ({
+                        name: color,
+                        type: 'line',
+                        smooth: true,
+                        data: list.map(item => item.stats[color] || 0),
+                        itemStyle: { color },
+                        lineStyle: { width: 3 }
+                    }));
+        
+                    offHistoryChart.setOption({
+                        backgroundColor: 'transparent',
+                        tooltip: { trigger: 'axis' },
+                        legend: { type: 'scroll', bottom: 30, textStyle: { color: '#22c55e', fontSize: 12 } },
+                        grid: { left: '8%', right: '5%', bottom: 80, top: 30 },
+                        xAxis: { type: 'category', data: xData, axisLabel: { color: '#aaa', fontSize: 11 } },
+                        yAxis: { type: 'value', axisLabel: { color: '#aaa' }, splitLine: { lineStyle: { color: '#555' } } },
+                        series: series
+                    });
+                }
+        
+                // 渲染选定范围趋势
+                const list = filterRecords(exportMode);
+                if (list && list.length > 0) {
+                    const lastStats = list[list.length-1].stats || {};
+                    const topColors = Object.keys(lastStats)
+                        .sort((a,b) => (lastStats[b]||0) - (lastStats[a]||0))
+                        .slice(0, 8);
+        
+                    const xData = list.map(item => {
+                        if (exportMode === '7days') {
+                            const d = new Date(item.timestamp);
+                            return `${d.getMonth()+1}-${d.getDate()} ${d.getHours()}:${d.getMinutes().toString().padStart(2,'0')}`;
+                        }
+                        return (exportMode === '24h' || exportMode === '3days') 
+                            ? item.timestamp.split(' ')[1].slice(0,5) 
+                            : item.date;
+                    });
+        
+                    const series = topColors.map(color => ({
+                        name: color,
+                        type: 'line',
+                        smooth: true,
+                        data: list.map(item => item.stats[color] || 0),
+                        itemStyle: { color },
+                        lineStyle: { width: 3 }
+                    }));
+        
+                    offLineChart.setOption({
+                        backgroundColor: 'transparent',
+                        tooltip: { trigger: 'axis' },
+                        legend: { type: 'scroll', bottom: 40, textStyle: { color: '#22c55e', fontSize: 12 } },
+                        grid: { left: '8%', right: '5%', bottom: 90, top: 30 },
+                        xAxis: { type: 'category', data: xData, axisLabel: { color: '#aaa', fontSize: 11, rotate: 0 } },
+                        yAxis: { type: 'value', axisLabel: { color: '#aaa' }, splitLine: { lineStyle: { color: '#555' } } },
+                        series: series
+                    });
+                }
+        
+                // 等待图表渲染完成
+                setTimeout(() => {
+                    // 获取实际高度
+                    const exportHeight = offscreenContainer.scrollHeight;
+                            
+                    html2canvas(offscreenContainer, {
+                        scale: 2,
+                        useCORS: true,
+                        backgroundColor: '#2d333b',
+                        logging: false,
+                        width: 1800,
+                        height: exportHeight,
+                        windowWidth: 1800,
+                        windowHeight: exportHeight
+                    }).then(canvas => {
+                        const link = document.createElement('a');
+                        link.download = `wplace_export_${new Date().toISOString().slice(0,19).replace(/:/g,'-')}.png`;
+                        link.href = canvas.toDataURL('image/png');
+                        link.click();
+                                
+                        // 清理
+                        offPieChart.dispose();
+                        offHistoryChart.dispose();
+                        offLineChart.dispose();
+                        document.body.removeChild(offscreenContainer);
+                                
+                        btn.innerHTML = originalText;
+                        btn.disabled = false;
+                    }).catch(err => {
+                        console.error('导出失败:', err);
+                        alert('导出失败，请重试');
+                        offPieChart.dispose();
+                        offHistoryChart.dispose();
+                        offLineChart.dispose();
+                        document.body.removeChild(offscreenContainer);
+                        btn.innerHTML = originalText;
+                        btn.disabled = false;
+                    });
+                }, 1000);
+        
+            } catch (err) {
                 console.error('导出失败:', err);
                 alert('导出失败，请重试');
+                offPieChart.dispose();
+                offHistoryChart.dispose();
+                offLineChart.dispose();
+                document.body.removeChild(offscreenContainer);
                 btn.innerHTML = originalText;
                 btn.disabled = false;
-            });
+            }
         }
 
         function toggleExpand() {
