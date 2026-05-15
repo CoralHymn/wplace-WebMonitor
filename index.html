@@ -523,23 +523,23 @@
             offscreenContainer.style.left = '-9999px';
             offscreenContainer.style.top = '0';
             offscreenContainer.style.width = '1800px';
-            offscreenContainer.style.background = '#2d333b';
+            offscreenContainer.style.background = '#27272a';
             offscreenContainer.style.padding = '60px 40px';
             offscreenContainer.style.zIndex = '-1';
             offscreenContainer.innerHTML = `
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 30px; margin-bottom: 50px;">
+                <div style="display: grid; grid-template-columns: 1.1fr 0.9fr; gap: 30px; margin-bottom: 50px;">
                     <div style="padding: 20px;">
                         <h3 style="text-align: center; color: #22c55e; font-size: 20px; margin-bottom: 20px; font-family: 'Press Start 2P';">实时颜色占比 (Top 15)</h3>
-                        <div id="offscreen-pie" style="width: 820px; height: 550px;"></div>
+                        <div id="offscreen-pie" style="width: 900px; height: 700px;"></div>
                     </div>
                     <div style="padding: 20px;">
                         <h3 style="text-align: center; color: #22c55e; font-size: 20px; margin-bottom: 20px; font-family: 'Press Start 2P';">颜色历史趋势 (全部数据)</h3>
-                        <div id="offscreen-history" style="width: 820px; height: 550px;"></div>
+                        <div id="offscreen-history" style="width: 700px; height: 700px;"></div>
                     </div>
                 </div>
                 <div style="padding: 20px;">
                     <h3 style="text-align: center; color: #22c55e; font-size: 20px; margin-bottom: 20px; font-family: 'Press Start 2P';">导出范围数据趋势</h3>
-                    <div id="offscreen-line" style="width: 1720px; height: 650px;"></div>
+                    <div id="offscreen-line" style="width: 1720px; height: 750px;"></div>
                 </div>
             `;
             document.body.appendChild(offscreenContainer);
@@ -639,7 +639,7 @@
                     html2canvas(offscreenContainer, {
                         scale: 2,
                         useCORS: true,
-                        backgroundColor: '#2d333b',
+                        backgroundColor: '#27272a',
                         logging: false,
                         width: 1800,
                         height: exportHeight,
