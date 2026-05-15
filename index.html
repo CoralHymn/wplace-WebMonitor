@@ -6,6 +6,7 @@
     <title>Wplace-区域监测</title>
     <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
     <style>
         body { font-family: 'Press Start 2P', system-ui; background: #0a0a0a; color: #22c55e; }
@@ -47,6 +48,7 @@
                 </div>
             </div>
             <div class="text-right">
+                <button onclick="openExportModal()" class="px-6 py-2 border border-green-500 hover:bg-green-500 hover:text-black text-sm text-green-400 transition-all mb-2">📥 导出为图片</button>
                 <div id="last-update" class="text-xs text-green-300"></div>
                 <div class="text-[10px] text-zinc-500 mt-1">5分钟自动更新</div>
             </div>
@@ -131,10 +133,67 @@
         wplace-WebMonitor • <a href="https://github.com/CoralHymn/wplace-WebMonitor">GITHUB</a>
     </footer>
 
+    <!-- 导出模态框 -->
+    <div id="export-modal" class="fixed inset-0 bg-black bg-opacity-90 z-50 hidden overflow-y-auto">
+        <div class="flex items-center justify-center min-h-screen p-4">
+            <div class="bg-zinc-900 border-4 border-green-500 p-6 w-full max-w-6xl relative">
+                <button onclick="closeExportModal()" class="absolute top-4 right-4 text-green-400 text-2xl hover:text-green-200">✖</button>
+                <h2 class="text-2xl font-bold mb-6 text-center">导出监测数据</h2>
+                
+                <!-- 选择导出范围 -->
+                <div class="mb-6 text-center">
+                    <p class="text-sm text-green-300 mb-3">选择要导出的数据范围：</p>
+                    <div class="btn-group flex gap-2 justify-center flex-wrap">
+                        <button id="export-btn-24h" class="active px-6 py-2 border border-green-500" onclick="setExportMode('24h')">近24小时</button>
+                        <button id="export-btn-3days" class="px-6 py-2 border border-green-500" onclick="setExportMode('3days')">近3天</button>
+                        <button id="export-btn-7days" class="px-6 py-2 border border-green-500" onclick="setExportMode('7days')">近7天</button>
+                        <button id="export-btn-week" class="px-6 py-2 border border-green-500" onclick="setExportMode('week')">近1周</button>
+                        <button id="export-btn-month" class="px-6 py-2 border border-green-500" onclick="setExportMode('month')">近1月</button>
+                        <button id="export-btn-all" class="px-6 py-2 border border-green-500" onclick="setExportMode('all')">全部历史</button>
+                    </div>
+                </div>
+
+                <!-- 导出预览区 -->
+                <div id="export-content" class="bg-zinc-800 p-8">
+                    <div class="grid grid-cols-2 gap-6">
+                        <!-- 颜色占比 -->
+                        <div>
+                            <h3 class="text-lg font-bold mb-4 text-center">实时颜色占比</h3>
+                            <div id="export-pie-chart" style="height: 450px;"></div>
+                        </div>
+                        <!-- 历史趋势 -->
+                        <div>
+                            <h3 class="text-lg font-bold mb-4 text-center">全部历史趋势</h3>
+                            <div id="export-history-chart" style="height: 450px;"></div>
+                        </div>
+                    </div>
+                    <!-- 选定范围趋势 -->
+                    <div class="mt-6">
+                        <h3 class="text-lg font-bold mb-4 text-center">导出范围数据趋势</h3>
+                        <div id="export-line-chart" style="height: 500px;"></div>
+                    </div>
+                </div>
+
+                <!-- 导出按钮 -->
+                <div class="mt-6 text-center">
+                    <button onclick="downloadExportImage()" class="px-8 py-3 border-3 border-green-500 hover:bg-green-500 hover:text-black text-lg font-bold transition-all" id="download-btn">
+                        📥 下载图片
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script>
         let pieChart = echarts.init(document.getElementById('pie-chart'));
         let compactChart = echarts.init(document.getElementById('line-chart'));
         let expandedChart = null;
+
+        // 导出相关变量
+        let exportPieChart = null;
+        let exportHistoryChart = null;
+        let exportLineChart = null;
+        let exportMode = '24h';
 
         let currentMode = '24h';
         let realtimeData = null;
@@ -338,6 +397,149 @@
             setMode('24h');
         }
 
+        // 导出功能相关
+        function openExportModal() {
+            document.getElementById('export-modal').classList.remove('hidden');
+            
+            // 延迟初始化图表，确保DOM已渲染
+            setTimeout(() => {
+                if (!exportPieChart) {
+                    exportPieChart = echarts.init(document.getElementById('export-pie-chart'));
+                }
+                if (!exportHistoryChart) {
+                    exportHistoryChart = echarts.init(document.getElementById('export-history-chart'));
+                }
+                if (!exportLineChart) {
+                    exportLineChart = echarts.init(document.getElementById('export-line-chart'));
+                }
+                updateExportCharts();
+            }, 100);
+        }
+
+        function closeExportModal() {
+            document.getElementById('export-modal').classList.add('hidden');
+        }
+
+        function setExportMode(mode) {
+            exportMode = mode;
+            document.querySelectorAll('#export-modal .btn-group button').forEach(b => 
+                b.classList.toggle('active', b.id === `export-btn-${mode}`)
+            );
+            updateExportCharts();
+        }
+
+        function updateExportCharts() {
+            // 更新饼图
+            if (exportPieChart && realtimeData) {
+                const latestStats = realtimeData.records?.[realtimeData.records.length-1]?.stats || {};
+                const pieData = Object.entries(latestStats).slice(0,15)
+                    .map(([color,val]) => ({name:color, value:val, itemStyle:{color}}));
+
+                exportPieChart.setOption({
+                    tooltip: { trigger: 'item', formatter: '{b}: {c}%' },
+                    legend: { top: '5%', left: 'center', type: 'scroll', textStyle: { color: '#22c55e', fontSize: 12 } },
+                    series: [{ type: 'pie', radius: ['40%', '70%'], data: pieData, label: { color: '#ddd' } }]
+                });
+            }
+
+            // 更新历史趋势图（全部数据）
+            if (exportHistoryChart && historyData?.daily_noon?.length > 0) {
+                const list = historyData.daily_noon;
+                const lastStats = list[list.length-1].stats || {};
+                const topColors = Object.keys(lastStats)
+                    .sort((a,b) => (lastStats[b]||0) - (lastStats[a]||0))
+                    .slice(0, 8);
+
+                const xData = list.map(item => item.date);
+                const series = topColors.map(color => ({
+                    name: color,
+                    type: 'line',
+                    smooth: true,
+                    data: list.map(item => item.stats[color] || 0),
+                    itemStyle: { color },
+                    lineStyle: { width: 3 }
+                }));
+
+                exportHistoryChart.setOption({
+                    tooltip: { trigger: 'axis' },
+                    legend: { type: 'scroll', bottom: 30, textStyle: { color: '#22c55e' } },
+                    grid: { left: '8%', right: '8%', bottom: 60 },
+                    xAxis: { type: 'category', data: xData, axisLabel: { color: '#aaa', fontSize: 10 } },
+                    yAxis: { type: 'value', axisLabel: { color: '#aaa' } },
+                    series: series
+                }, true);
+            }
+
+            // 更新选定范围的趋势图
+            if (exportLineChart) {
+                const list = filterRecords(exportMode);
+                if (list && list.length > 0) {
+                    const lastStats = list[list.length-1].stats || {};
+                    const topColors = Object.keys(lastStats)
+                        .sort((a,b) => (lastStats[b]||0) - (lastStats[a]||0))
+                        .slice(0, 8);
+
+                    const xData = list.map(item => {
+                        if (exportMode === '7days') {
+                            const d = new Date(item.timestamp);
+                            return `${d.getMonth()+1}-${d.getDate()} ${d.getHours()}:${d.getMinutes().toString().padStart(2,'0')}`;
+                        }
+                        return (exportMode === '24h' || exportMode === '3days') 
+                            ? item.timestamp.split(' ')[1].slice(0,5) 
+                            : item.date;
+                    });
+
+                    const series = topColors.map(color => ({
+                        name: color,
+                        type: 'line',
+                        smooth: true,
+                        data: list.map(item => item.stats[color] || 0),
+                        itemStyle: { color },
+                        lineStyle: { width: 3 }
+                    }));
+
+                    exportLineChart.setOption({
+                        tooltip: { trigger: 'axis' },
+                        legend: { type: 'scroll', bottom: 40, textStyle: { color: '#22c55e' } },
+                        grid: { left: '8%', right: '8%', bottom: 70 },
+                        xAxis: { type: 'category', data: xData, axisLabel: { color: '#aaa', fontSize: 10, rotate: 0 } },
+                        yAxis: { type: 'value', axisLabel: { color: '#aaa' } },
+                        series: series
+                    }, true);
+                }
+            }
+        }
+
+        function downloadExportImage() {
+            const element = document.getElementById('export-content');
+            const btn = document.getElementById('download-btn');
+            const originalText = btn.innerHTML;
+            btn.innerHTML = '⏳ 生成中...';
+            btn.disabled = true;
+
+            html2canvas(element, {
+                scale: 2,
+                useCORS: true,
+                backgroundColor: '#1f2937',
+                logging: false,
+                width: element.scrollWidth,
+                height: element.scrollHeight
+            }).then(canvas => {
+                const link = document.createElement('a');
+                link.download = `wplace_export_${new Date().toISOString().slice(0,19).replace(/:/g,'-')}.png`;
+                link.href = canvas.toDataURL('image/png');
+                link.click();
+                
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+            }).catch(err => {
+                console.error('导出失败:', err);
+                alert('导出失败，请重试');
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+            });
+        }
+
         function toggleExpand() {
             isExpanded = !isExpanded;
             const expandedCard = document.getElementById('expanded-history-card');
@@ -373,6 +575,9 @@
                 pieChart.resize();
                 compactChart.resize();
                 if (expandedChart) expandedChart.resize();
+                if (exportPieChart) exportPieChart.resize();
+                if (exportHistoryChart) exportHistoryChart.resize();
+                if (exportLineChart) exportLineChart.resize();
             };
         };
     </script>
