@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wplace-延时视频</title>
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Press Start 2P', system-ui; background: #0a0a0a; color: #22c55e; }
+        .card { background: #111827; border: 3px solid #22c55e; box-shadow: 0 0 20px rgba(34, 197, 94, 0.3); }
+        .header { background: linear-gradient(90deg, #0a0a0a, #1a1a2e); border-bottom: 4px solid #22c55e; }
+        .chart-box { height: 420px; width: 100%; }
+        .btn-group button { font-family: 'Press Start 2P'; transition: all 0.2s; }
+        .btn-group button.active { background: #22c55e; color: black; box-shadow: 0 0 10px #22c55e; }
+        .error-msg { color: #ef4444; text-shadow: 0 0 5px #ef4444; }
+        .header h1 { font-size: 1.75rem; }
+        @media (min-width: 640px) { .header h1 { font-size: 2.25rem; } }
+        .expanded-card { grid-column: 1 / -1; margin-top: 24px; }
+        .expanded-chart-box { height: 620px; width: 100%; }
+        .expand-btn {
+            font-family: 'Press Start 2P';
+            font-size: 13px;
+            padding: 8px 16px;
+            border: 2px solid #22c55e;
+        }
+        @media (max-width: 768px) { .expand-btn { display: none; } }
+        video { width: 100%; border: 4px solid #22c55e; box-shadow: 0 0 15px rgba(34, 197, 94, 0.5); border-radius: 8px; }
+    </style>
+</head>
+<body class="min-h-screen pb-12">
+    <header class="header py-6 text-center">
+        <div class="max-w-7xl mx-auto px-6 flex items-center justify-between">
+            <div class="flex items-center gap-4">
+                <div class="w-10 h-10 md:w-12 md:h-12 bg-green-500 text-black flex items-center justify-center text-4xl font-bold rotate-12">🎬</div>
+                <div>
+                    <h1 class="text-4xl tracking-widest text-green-400">wplace-Timelapse</h1>
+                    <p class="text-xs text-green-300 tracking-widest">wplace • VIDEO PLAYER</p>
+                </div>
+            </div>
+            <div class="text-right">
+                <a href="index.html" class="inline-block px-6 py-2 border border-green-500 hover:bg-green-500 hover:text-black text-sm text-green-400 transition-all">📊 返回监测页面</a>
+            </div>
+        </div>
+    </header>
+
+    <div class="max-w-7xl mx-auto px-6 pt-8">
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+
+            <!-- 视频播放器 -->
+            <div class="card p-6 lg:col-span-2">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-2xl font-bold tracking-widest">延时视频播放</h3>
+                    <div class="px-4 py-1 bg-green-500/10 border border-green-500 text-green-400 text-xs rounded-full">TIMELAPSE VIDEO</div>
+                </div>
+                <p id="video-error" class="error-msg hidden mb-3">视频加载失败，请检查视频URL</p>
+                
+                <!-- 视频播放器 -->
+                <video id="timelapse-video" controls preload="auto">
+                    <!-- 在这里插入你的视频URL -->
+                    <source src="YOUR_VIDEO_URL_HERE.mp4" type="video/mp4">
+                    您的浏览器不支持视频播放。
+                </video>
+
+                <!-- 视频说明 -->
+                <div class="mt-4 p-4 bg-zinc-900/50 border border-green-500/30 rounded">
+                    <p class="text-xs text-green-300/70"> 提示：编辑此文件，将 <code class="px-2 py-1 bg-zinc-800 border border-green-500/30 rounded">YOUR_VIDEO_URL_HERE.mp4</code> 替换为您的实际视频URL</p>
+                </div>
+            </div>
+
+            <!-- 实时颜色占比 -->
+            <div class="card p-6">
+                <h3 class="text-2xl font-bold tracking-widest mb-6">实时颜色占比 (Top 15)</h3>
+                <div id="pie-chart" class="chart-box"></div>
+            </div>
+
+            <!-- 历史趋势紧凑版 -->
+            <div class="card p-6" id="compact-history-card">
+                <div class="flex justify-between items-center mb-6">
+                    <h3 class="text-2xl font-bold tracking-widest">颜色历史趋势</h3>
+                    <div class="flex items-center gap-3">
+                        <div class="btn-group flex gap-2 text-xs flex-wrap">
+                            <button id="btn-24h" class="active px-6 py-2 border border-green-500" onclick="setMode('24h')">近24小时</button>
+                            <button id="btn-3days" class="px-6 py-2 border border-green-500" onclick="setMode('3days')">近3天</button>
+                            <button id="btn-7days" class="px-6 py-2 border border-green-500" onclick="setMode('7days')">近7天</button>
+                            <button id="btn-week" class="px-6 py-2 border border-green-500" onclick="setMode('week')">近1周</button>
+                            <button id="btn-month" class="px-6 py-2 border border-green-500" onclick="setMode('month')">近1月</button>
+                            <button id="btn-all" class="px-6 py-2 border border-green-500" onclick="setMode('all')">全部历史</button>
+                            <button id="btn-custom" class="px-6 py-2 border border-green-500" onclick="toggleCustom()">自定义范围</button>
+                        </div>
+                        <button id="expand-btn" onclick="toggleExpand()" 
+                                class="expand-btn px-5 py-1 text-sm hover:bg-green-500 hover:text-black">
+                            展开 ▶
+                        </button>
+                    </div>
+                </div>
+                <div id="line-chart" class="chart-box"></div>
+            </div>
+
+            <!-- 展开大容器 -->
+            <div id="expanded-history-card" class="card p-6 expanded-card hidden">
+                <div class="flex justify-between items-center mb-6">
+                    <h3 class="text-2xl font-bold tracking-widest">颜色历史趋势（展开模式）</h3>
+                    <button onclick="toggleExpand()" 
+                            class="expand-btn px-5 py-1 text-sm hover:bg-green-500 hover:text-black">
+                        收起 ▲
+                    </button>
+                </div>
+                <div id="expanded-line-chart" class="expanded-chart-box"></div>
+            </div>
+
+            <!-- 自定义范围 -->
+            <div id="custom-range" class="hidden mt-4 p-4 bg-zinc-900 border border-green-500/30 rounded col-span-1 lg:col-span-2">
+                <div class="flex flex-wrap gap-4 items-end">
+                    <div>
+                        <label class="text-xs text-green-300 block mb-1">起始日期</label>
+                        <input id="start-date" type="date" class="bg-zinc-950 text-green-400 border border-green-500 px-4 py-2 rounded text-sm">
+                    </div>
+                    <div>
+                        <label class="text-xs text-green-300 block mb-1">结束日期</label>
+                        <input id="end-date" type="date" class="bg-zinc-950 text-green-400 border border-green-500 px-4 py-2 rounded text-sm">
+                    </div>
+                    <button onclick="applyCustomRange()" class="px-6 py-2 border border-green-500 hover:bg-green-500 hover:text-black text-sm">确认查询</button>
+                    <button onclick="cancelCustom()" class="px-6 py-2 border border-green-500 text-zinc-400 text-sm">取消</button>
+                    <p class="text-[10px] text-green-300/70">最大范围不得超过30天</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <footer class="text-center text-[10px] text-zinc-500 mt-16">
+        wplace-WebMonitor • <a href="https://github.com/CoralHymn/wplace-WebMonitor">GITHUB</a>
+    </footer>
+
+    <script>
+        let pieChart = echarts.init(document.getElementById('pie-chart'));
+        let compactChart = echarts.init(document.getElementById('line-chart'));
+        let expandedChart = null;
+
+        let currentMode = '24h';
+        let realtimeData = null;
+        let threeDaysData = null;
+        let sevenDaysData = null;
+        let historyData = null;
+        let customStart = null;
+        let customEnd = null;
+        let isExpanded = false;
+
+        let legendSelectedState = {};
+
+        function saveLegendState() {
+            const hidden = Object.keys(legendSelectedState).filter(k => legendSelectedState[k] === false);
+            localStorage.setItem('wplace_legend_hidden', JSON.stringify(hidden));
+        }
+
+        function loadLegendState() {
+            const saved = localStorage.getItem('wplace_legend_hidden');
+            if (saved) {
+                const hidden = JSON.parse(saved);
+                legendSelectedState = {};
+                hidden.forEach(color => legendSelectedState[color] = false);
+            }
+        }
+
+        function fetchRealtime() {
+            fetch('data/realtime_colors.json?t=' + Date.now())
+                .then(res => res.json())
+                .then(data => {
+                    realtimeData = data;
+                    document.getElementById('last-update').innerText = 
+                        "最后更新: " + (realtimeData.records?.[realtimeData.records.length-1]?.timestamp || '未知时间');
+
+                    const latestStats = realtimeData.records?.[realtimeData.records.length-1]?.stats || {};
+                    const pieData = Object.entries(latestStats).slice(0,15)
+                        .map(([color,val]) => ({name:color, value:val, itemStyle:{color}}));
+
+                    pieChart.setOption({
+                        tooltip: { trigger: 'item', formatter: '{b}: {c}%' },
+                        legend: { top: '5%', left: 'center', type: 'scroll', textStyle: { color: '#22c55e', fontSize: 12 } },
+                        series: [{ type: 'pie', radius: ['40%', '70%'], data: pieData, label: { color: '#ddd' } }]
+                    });
+                })
+                .catch(() => {});
+        }
+
+        function fetchThreeDays() {
+            fetch('data/three_days.json?t=' + Date.now())
+                .then(res => res.json())
+                .then(d => { threeDaysData = d; refreshCharts(); })
+                .catch(() => {});
+        }
+
+        function fetchSevenDays() {
+            fetch('data/seven_days.json?t=' + Date.now())
+                .then(res => res.json())
+                .then(d => { sevenDaysData = d; refreshCharts(); })
+                .catch(() => {});
+        }
+
+        function fetchHistory() {
+            fetch('data/history_colors.json?t=' + Date.now())
+                .then(res => res.json())
+                .then(d => { historyData = d; refreshCharts(); })
+                .catch(() => {});
+        }
+
+        function filterRecords(mode) {
+            if (mode === '24h') return realtimeData?.records || [];
+            if (mode === '3days') return threeDaysData?.records || [];
+            if (mode === '7days') return sevenDaysData?.records || [];
+            if (mode === 'custom') {
+                if (!customStart || !customEnd) return [];
+                return historyData?.daily_noon?.filter(r => r.date >= customStart && r.date <= customEnd) || [];
+            }
+            let days = mode === 'week' ? 7 : (mode === 'month' ? 30 : 9999);
+            const cutoff = new Date(Date.now() - days*86400000).toISOString().split('T')[0];
+            return (historyData?.daily_noon || []).filter(r => r.date >= cutoff);
+        }
+
+        function updateChart(chartInst, isBig = false) {
+            if (!chartInst) return;
+            const list = filterRecords(currentMode);
+            if (!list || list.length === 0) {
+                chartInst.clear();
+                return;
+            }
+
+            const lastStats = list[list.length-1].stats || {};
+            const topColors = Object.keys(lastStats)
+                .sort((a,b) => (lastStats[b]||0) - (lastStats[a]||0))
+                .slice(0, 6);
+
+            const xData = list.map(item => {
+                if (currentMode === '7days') {
+                    const d = new Date(item.timestamp);
+                    return `${d.getMonth()+1}-${d.getDate()} ${d.getHours()}:${d.getMinutes().toString().padStart(2,'0')}`;
+                }
+                return (currentMode === '24h' || currentMode === '3days') 
+                    ? item.timestamp.split(' ')[1].slice(0,5) 
+                    : item.date;
+            });
+
+            const series = topColors.map(color => ({
+                name: color,
+                type: 'line',
+                smooth: true,
+                data: list.map(item => item.stats[color] || 0),
+                itemStyle: { color },
+                lineStyle: { width: 3 }
+            }));
+
+            const opt = {
+                tooltip: { trigger: 'axis' },
+                legend: { 
+                    type: 'scroll', 
+                    bottom: 40, 
+                    textStyle: { color: '#22c55e' },
+                    selected: {}
+                },
+                grid: { 
+                    left: '8%', 
+                    right: '8%', 
+                    bottom: isBig ? '85' : '75' 
+                },
+                xAxis: { 
+                    type: 'category', 
+                    data: xData, 
+                    axisLabel: { 
+                        color: '#aaa', 
+                        fontSize: 10, 
+                        rotate: 0
+                    } 
+                },
+                yAxis: { type: 'value', axisLabel: { color: '#aaa' } },
+                series: series,
+                dataZoom: [
+                    { type: 'inside', xAxisIndex: 0, zoomLock: false },
+                    { 
+                        type: 'slider', 
+                        xAxisIndex: 0, 
+                        bottom: 25, 
+                        height: 20,
+                        borderColor: '#22c55e',
+                        fillerColor: 'rgba(34,197,94,0.2)'
+                    }
+                ]
+            };
+
+            topColors.forEach(color => {
+                opt.legend.selected[color] = legendSelectedState[color] !== false;
+            });
+
+            chartInst.setOption(opt, true);
+
+            chartInst.off('legendselectchanged');
+            chartInst.on('legendselectchanged', (params) => {
+                topColors.forEach(color => {
+                    legendSelectedState[color] = params.selected[color] !== false;
+                });
+                saveLegendState();
+            });
+        }
+
+        function refreshCharts() {
+            updateChart(compactChart, false);
+            if (isExpanded && expandedChart) updateChart(expandedChart, true);
+        }
+
+        function setMode(mode) {
+            currentMode = mode;
+            document.getElementById('custom-range').classList.add('hidden');
+            document.querySelectorAll('.btn-group button').forEach(b => 
+                b.classList.toggle('active', b.id === `btn-${mode}`)
+            );
+            refreshCharts();
+        }
+
+        function toggleCustom() {
+            currentMode = 'custom';
+            document.querySelectorAll('.btn-group button').forEach(b => b.classList.remove('active'));
+            document.getElementById('btn-custom').classList.add('active');
+            document.getElementById('custom-range').classList.remove('hidden');
+            refreshCharts();
+        }
+
+        function applyCustomRange() {
+            const s = document.getElementById('start-date').value;
+            const e = document.getElementById('end-date').value;
+            if (!s || !e) return alert('请选择日期');
+            if (new Date(e) < new Date(s)) return alert('结束日期不能早于起始日期');
+            if (Math.ceil((new Date(e) - new Date(s)) / 86400000) > 30) return alert('最大30天');
+            customStart = s; customEnd = e;
+            refreshCharts();
+        }
+
+        function cancelCustom() {
+            document.getElementById('custom-range').classList.add('hidden');
+            setMode('24h');
+        }
+
+        function toggleExpand() {
+            isExpanded = !isExpanded;
+            const expandedCard = document.getElementById('expanded-history-card');
+            const btn = document.getElementById('expand-btn');
+
+            if (isExpanded) {
+                expandedCard.classList.remove('hidden');
+                btn.textContent = '收起 ▲';
+                if (!expandedChart) {
+                    expandedChart = echarts.init(document.getElementById('expanded-line-chart'));
+                }
+                updateChart(expandedChart, true);
+            } else {
+                expandedCard.classList.add('hidden');
+                btn.textContent = '展开 ▶';
+            }
+        }
+
+        window.onload = () => {
+            loadLegendState();
+
+            fetchRealtime();
+            fetchThreeDays();
+            fetchSevenDays();
+            fetchHistory();
+
+            setInterval(fetchRealtime, 15000);
+            setInterval(fetchThreeDays, 30000);
+            setInterval(fetchSevenDays, 30000);
+            setInterval(fetchHistory, 60000);
+
+            window.onresize = () => {
+                pieChart.resize();
+                compactChart.resize();
+                if (expandedChart) expandedChart.resize();
+            };
+        };
+    </script>
+</body>
+</html>
